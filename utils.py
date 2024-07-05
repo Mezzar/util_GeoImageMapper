@@ -84,3 +84,65 @@ class ImageCoordinatesParser:
         if geotags["GPSLongitudeRef"] != "E":
             lon = -lon
         return Coordinates(lat, lon)
+
+
+class MapUrlGenerator:
+    def single(self, coordinates:Coordinates) -> str:
+        raise NotImplementedError("This method should be implemented by subclasses")
+
+    def multiple(self, coordinates_list:list[Coordinates], markers_limit:int) -> str:
+        raise NotImplementedError("This method should be implemented by subclasses")
+
+    def _find_center(self, coordinates_list:list[Coordinates], markers_limit:int|None=None) -> Coordinates:
+        if markers_limit:
+            limit = min(markers_limit, len(coordinates_list))
+        else:
+            limit = len(coordinates_list)
+        lats, longs = [], []
+        for coords in coordinates_list[:limit]:
+            lats.append(coords.latitude)
+            longs.append(coords.longitude)
+        center_coord = Coordinates(latitude = sum(lats) / limit, longitude = sum(longs) / limit)
+        return center_coord
+
+class GoogleMapUrlGenerator(MapUrlGenerator):
+    def single(self, coordinates:Coordinates) -> str:
+        return f"https://www.google.com/maps?q={coordinates.latitude},{coordinates.longitude}"
+
+    def multiple(self, coordinates_list:list[Coordinates], markers_limit:int=200, zoom:int=10) -> str:
+        center_point = self._find_center(coordinates_list, markers_limit)
+        map_url = "https://www.google.com/maps/dir/"
+        for coords in coordinates_list[:markers_limit]:
+            map_url += f"{coords.latitude},{coords.longitude}/"
+        map_url = map_url + "/@"  # собака нужна, чтобы были точки, а не маршрут
+        map_url += f"{center_point.latitude},{center_point.longitude},{zoom}z"  #центр обзора и зум
+        return map_url
+
+class YandexMapUrlGenerator(MapUrlGenerator):
+    def single(self, coordinates:Coordinates, zoom:int=12) -> str:
+        return f"https://yandex.ru/maps/?pt={coordinates.longitude}%2C{coordinates.latitude}&z={zoom}"
+
+    def multiple(self, coordinates_list:list[Coordinates], markers_limit:int=200, zoom:int=12) -> str:
+        # Описание синтаксиса Яндекс карт:
+        # https://yandex.com/dev/yandex-apps-launch-maps/doc/en/concepts/yandexmaps-web#yandexmaps-web__section_b3b_cst_ngb
+
+        center_point = self._find_center(coordinates_list, markers_limit)
+        map_url = "https://yandex.ru/maps/?pt="
+        for coords in coordinates_list[:markers_limit]:
+            map_url += f"{coords.longitude},{coords.latitude}~"
+        map_url = map_url.rstrip("~")
+        map_url += f"&ll={center_point.longitude},{center_point.latitude}"   #центр экрана
+        map_url += f"&z={zoom}"
+        return map_url
+
+
+class MapUrlGeneratorFactory:
+    @staticmethod
+    def create(engine:str):
+        engine = engine.lower()
+        if engine in ["google", "g"]:
+            return GoogleMapUrlGenerator()
+        elif engine in ["yandex", "y"]:
+            return YandexMapUrlGenerator()
+        else:
+            raise ValueError(f"Unknown map engine: {engine}")
