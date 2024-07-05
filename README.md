@@ -4,7 +4,7 @@
 
 Есть консольная и GUI версия.
 
-Синтаксис консольной: `python map_image.py image_filepath` и `python map_image.py folder_path`.
+Синтаксис консольной: `python map_image.py image_filepath` для одного файла и `python map_folder.py folder_path` для папки.
 
 По умолчанию отображается на карте Яндекса. Для выбора Google добавить параметр `-m g` (полная версия `--map google`)
 
